@@ -16,7 +16,7 @@ type API struct {
 	userRepo         domain.UserRepository
 }
 
-func NewAPI(conn repository.Connection) *API {
+func NewAPI(conn *repository.Connection) *API {
 	aiCorrectionRepo := repository.NewPostgresAICorrection(conn)
 	mistakeRepo := repository.NewPostgresMistake(conn)
 	noteRepo := repository.NewPostgresNote(conn)

@@ -2,14 +2,20 @@ package domain
 
 import (
 	"context"
+	"time"
 )
 
 // Practice represents the jpcorrect.practice table
 type Practice struct {
-	PracticeID int     `db:"practice_id" json:"practice_id"`
-	UserID     int     `db:"user_id" json:"user_id"`
-	Date       string  `db:"date" json:"date"`
-	Duration   float64 `db:"duration" json:"duration"`
+	PracticeID int       `json:"practice_id" gorm:"column:practice_id;primaryKey;autoIncrement"`
+	UserID     int       `json:"user_id" gorm:"column:user_id"`
+	Date       time.Time `json:"date" gorm:"column:date;type:date"`
+	Duration   float64   `json:"duration" gorm:"column:duration"`
+}
+
+// TableName overrides the default table name
+func (Practice) TableName() string {
+	return "jpcorrect.practice"
 }
 
 type PracticeRepository interface {

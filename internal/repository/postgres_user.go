@@ -2,62 +2,36 @@ package repository
 
 import (
 	"context"
+	"errors"
 
 	"jpcorrect-backend/internal/domain"
+
+	"gorm.io/gorm"
 )
 
 type postgresUserRepository struct {
-	conn Connection
+	db *gorm.DB
 }
 
-func NewPostgresUser(conn Connection) domain.UserRepository {
-	return &postgresUserRepository{conn: conn}
-}
-
-func (u *postgresUserRepository) fetch(ctx context.Context, query string, args ...any) ([]*domain.User, error) {
-	rows, err := u.conn.Query(ctx, query, args...)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var users []*domain.User
-	for rows.Next() {
-		var user domain.User
-		if err := rows.Scan(
-			&user.UserID,
-			&user.Name,
-		); err != nil {
-			return nil, err
-		}
-		users = append(users, &user)
-	}
-	return users, nil
+func NewPostgresUser(conn *Connection) domain.UserRepository {
+	return &postgresUserRepository{db: conn.DB}
 }
 
 func (u *postgresUserRepository) GetByID(ctx context.Context, userID int) (*domain.User, error) {
-	query := `
-		SELECT user_id, name
-		FROM jpcorrect.user
-		WHERE user_id = $1`
-
-	users, err := u.fetch(ctx, query, userID)
+	var user domain.User
+	err := u.db.WithContext(ctx).Where("user_id = ?", userID).First(&user).Error
 	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, domain.ErrNotFound
+		}
 		return nil, err
 	}
-	if len(users) == 0 {
-		return nil, domain.ErrNotFound
-	}
-	return users[0], nil
+	return &user, nil
 }
 
 func (u *postgresUserRepository) GetByName(ctx context.Context, name string) ([]*domain.User, error) {
-	query := `
-		SELECT user_id, name
-		FROM jpcorrect.user
-		WHERE name = $1`
-
-	users, err := u.fetch(ctx, query, name)
+	var users []*domain.User
+	err := u.db.WithContext(ctx).Where("name = ?", name).Find(&users).Error
 	if err != nil {
 		return nil, err
 	}
@@ -68,36 +42,23 @@ func (u *postgresUserRepository) GetByName(ctx context.Context, name string) ([]
 }
 
 func (u *postgresUserRepository) Create(ctx context.Context, user *domain.User) error {
-	query := `
-		INSERT INTO jpcorrect.user (name)
-		VALUES ($1)
-		RETURNING user_id`
-
-	if err := u.conn.QueryRow(ctx, query, user.Name).Scan(&user.UserID); err != nil {
-		return err
-	}
-	return nil
+	return u.db.WithContext(ctx).Create(user).Error
 }
 
 func (u *postgresUserRepository) Update(ctx context.Context, user *domain.User) error {
-	query := `
-		UPDATE jpcorrect.user
-		SET name = $1
-		WHERE user_id = $2`
-
-	if _, err := u.conn.Exec(ctx, query, user.Name, user.UserID); err != nil {
-		return err
+	result := u.db.WithContext(ctx).Model(user).Where("user_id = ?", user.UserID).Updates(map[string]interface{}{
+		"name": user.Name,
+	})
+	if result.Error != nil {
+		return result.Error
 	}
 	return nil
 }
 
 func (u *postgresUserRepository) Delete(ctx context.Context, userID int) error {
-	query := `
-		DELETE FROM jpcorrect.user
-		WHERE user_id = $1`
-
-	if _, err := u.conn.Exec(ctx, query, userID); err != nil {
-		return err
+	result := u.db.WithContext(ctx).Where("user_id = ?", userID).Delete(&domain.User{})
+	if result.Error != nil {
+		return result.Error
 	}
 	return nil
 }

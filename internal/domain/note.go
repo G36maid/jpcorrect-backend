@@ -6,9 +6,14 @@ import (
 
 // Note represents the jpcorrect.note table
 type Note struct {
-	NoteID     int    `db:"note_id" json:"note_id"`
-	PracticeID int    `db:"practice_id" json:"practice_id"`
-	Content    string `db:"content" json:"content"`
+	NoteID     int    `json:"note_id" gorm:"column:note_id;primaryKey;autoIncrement"`
+	PracticeID int    `json:"practice_id" gorm:"column:practice_id;not null"`
+	Content    string `json:"content" gorm:"column:content"`
+}
+
+// TableName overrides the default table name
+func (Note) TableName() string {
+	return "jpcorrect.note"
 }
 
 type NoteRepository interface {

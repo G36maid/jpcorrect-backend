@@ -2,105 +2,66 @@ package repository
 
 import (
 	"context"
+	"errors"
 
 	"jpcorrect-backend/internal/domain"
+
+	"gorm.io/gorm"
 )
 
 type postgresTranscriptRepository struct {
-	conn Connection
+	db *gorm.DB
 }
 
-func NewPostgresTranscript(conn Connection) domain.TranscriptRepository {
-	return &postgresTranscriptRepository{conn: conn}
-}
-
-func (p *postgresTranscriptRepository) fetch(ctx context.Context, query string, args ...any) ([]*domain.Transcript, error) {
-	rows, err := p.conn.Query(ctx, query, args...)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var transcripts []*domain.Transcript
-	for rows.Next() {
-		var transcript domain.Transcript
-		if err := rows.Scan(
-			&transcript.TranscriptID,
-			&transcript.MistakeID,
-			&transcript.Content,
-			&transcript.Furigana,
-			&transcript.Accent,
-		); err != nil {
-			return nil, err
-		}
-		transcripts = append(transcripts, &transcript)
-	}
-	return transcripts, nil
+func NewPostgresTranscript(conn *Connection) domain.TranscriptRepository {
+	return &postgresTranscriptRepository{db: conn.DB}
 }
 
 func (p *postgresTranscriptRepository) GetByID(ctx context.Context, transcriptID int) (*domain.Transcript, error) {
-	query := `
-		SELECT transcript_id, mistake_id, content, furigana, accent
-		FROM jpcorrect.transcript
-		WHERE transcript_id = $1`
-
-	transcripts, err := p.fetch(ctx, query, transcriptID)
+	var transcript domain.Transcript
+	err := p.db.WithContext(ctx).Where("transcript_id = ?", transcriptID).First(&transcript).Error
 	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, domain.ErrNotFound
+		}
 		return nil, err
 	}
-	if len(transcripts) == 0 {
-		return nil, domain.ErrNotFound
-	}
-	return transcripts[0], nil
+	return &transcript, nil
 }
 
 func (p *postgresTranscriptRepository) GetByMistakeID(ctx context.Context, mistakeID int) (*domain.Transcript, error) {
-	query := `
-		SELECT transcript_id, mistake_id, content, furigana, accent
-		FROM jpcorrect.transcript
-		WHERE mistake_id = $1`
-
-	transcripts, err := p.fetch(ctx, query, mistakeID)
+	var transcript domain.Transcript
+	err := p.db.WithContext(ctx).Where("mistake_id = ?", mistakeID).First(&transcript).Error
 	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, domain.ErrNotFound
+		}
 		return nil, err
 	}
-	if len(transcripts) == 0 {
-		return nil, domain.ErrNotFound
-	}
-	return transcripts[0], nil
+	return &transcript, nil
 }
 
 func (p *postgresTranscriptRepository) Create(ctx context.Context, transcript *domain.Transcript) error {
-	query := `
-		INSERT INTO jpcorrect.transcript (mistake_id, content, furigana, accent)
-		VALUES ($1, $2, $3, $4)
-		RETURNING transcript_id`
-
-	if err := p.conn.QueryRow(ctx, query, transcript.MistakeID, transcript.Content, transcript.Furigana, transcript.Accent).Scan(&transcript.TranscriptID); err != nil {
-		return err
-	}
-	return nil
+	return p.db.WithContext(ctx).Create(transcript).Error
 }
 
 func (p *postgresTranscriptRepository) Update(ctx context.Context, transcript *domain.Transcript) error {
-	query := `
-		UPDATE jpcorrect.transcript
-		SET mistake_id = $1, content = $2, furigana = $3, accent = $4
-		WHERE transcript_id = $5`
-
-	if _, err := p.conn.Exec(ctx, query, transcript.MistakeID, transcript.Content, transcript.Furigana, transcript.Accent, transcript.TranscriptID); err != nil {
-		return err
+	result := p.db.WithContext(ctx).Model(transcript).Where("transcript_id = ?", transcript.TranscriptID).Updates(map[string]interface{}{
+		"mistake_id": transcript.MistakeID,
+		"content":    transcript.Content,
+		"furigana":   transcript.Furigana,
+		"accent":     transcript.Accent,
+	})
+	if result.Error != nil {
+		return result.Error
 	}
 	return nil
 }
 
 func (p *postgresTranscriptRepository) Delete(ctx context.Context, transcriptID int) error {
-	query := `
-		DELETE FROM jpcorrect.transcript
-		WHERE transcript_id = $1`
-
-	if _, err := p.conn.Exec(ctx, query, transcriptID); err != nil {
-		return err
+	result := p.db.WithContext(ctx).Where("transcript_id = ?", transcriptID).Delete(&domain.Transcript{})
+	if result.Error != nil {
+		return result.Error
 	}
 	return nil
 }

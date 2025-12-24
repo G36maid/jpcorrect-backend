@@ -10,20 +10,34 @@ import (
 	"time"
 
 	"jpcorrect-backend/internal/api"
+	"jpcorrect-backend/internal/repository"
 
 	"github.com/gin-gonic/gin"
-	"github.com/jackc/pgx/v5/pgxpool"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
 )
 
 func Execute() {
-	dbpool, err := pgxpool.New(context.Background(), os.Getenv("DATABASE_URL"))
+	dsn := os.Getenv("DATABASE_URL")
+	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
 	if err != nil {
 		log.Fatalf("failed to connect to database: %v", err)
-		os.Exit(1)
 	}
-	defer dbpool.Close()
 
-	a := api.NewAPI(dbpool)
+	// Get the underlying sql.DB to configure connection pool
+	sqlDB, err := db.DB()
+	if err != nil {
+		log.Fatalf("failed to get underlying sql.DB: %v", err)
+	}
+	defer sqlDB.Close()
+
+	// Set connection pool settings
+	sqlDB.SetMaxIdleConns(10)
+	sqlDB.SetMaxOpenConns(100)
+	sqlDB.SetConnMaxLifetime(time.Hour)
+
+	conn := repository.NewConnection(db)
+	a := api.NewAPI(conn)
 
 	r := gin.Default()
 	api.Register(r, a)

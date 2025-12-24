@@ -6,9 +6,14 @@ import (
 
 // AICorrection represents the jpcorrect.ai_correction table
 type AICorrection struct {
-	AICorrectionID int    `db:"ai_correction_id" json:"ai_correction_id"`
-	MistakeID      int    `db:"mistake_id" json:"mistake_id"`
-	Content        string `db:"content" json:"content"`
+	AICorrectionID int    `json:"ai_correction_id" gorm:"column:ai_correction_id;primaryKey;autoIncrement"`
+	MistakeID      int    `json:"mistake_id" gorm:"column:mistake_id;not null"`
+	Content        string `json:"content" gorm:"column:content"`
+}
+
+// TableName overrides the default table name
+func (AICorrection) TableName() string {
+	return "jpcorrect.ai_correction"
 }
 
 type AICorrectionRepository interface {

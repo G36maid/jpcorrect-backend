@@ -2,103 +2,64 @@ package repository
 
 import (
 	"context"
+	"errors"
 
 	"jpcorrect-backend/internal/domain"
+
+	"gorm.io/gorm"
 )
 
 type postgresAICorrectionRepository struct {
-	conn Connection
+	db *gorm.DB
 }
 
-func NewPostgresAICorrection(conn Connection) domain.AICorrectionRepository {
-	return &postgresAICorrectionRepository{conn: conn}
-}
-
-func (p *postgresAICorrectionRepository) fetch(ctx context.Context, query string, args ...any) ([]*domain.AICorrection, error) {
-	rows, err := p.conn.Query(ctx, query, args...)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var aiCorrections []*domain.AICorrection
-	for rows.Next() {
-		var aiCorrection domain.AICorrection
-		if err := rows.Scan(
-			&aiCorrection.AICorrectionID,
-			&aiCorrection.MistakeID,
-			&aiCorrection.Content,
-		); err != nil {
-			return nil, err
-		}
-		aiCorrections = append(aiCorrections, &aiCorrection)
-	}
-	return aiCorrections, nil
+func NewPostgresAICorrection(conn *Connection) domain.AICorrectionRepository {
+	return &postgresAICorrectionRepository{db: conn.DB}
 }
 
 func (p *postgresAICorrectionRepository) GetByID(ctx context.Context, aiCorrectionID int) (*domain.AICorrection, error) {
-	query := `
-		SELECT ai_correction_id, mistake_id, content
-		FROM jpcorrect.ai_correction
-		WHERE ai_correction_id = $1`
-
-	aiCorrections, err := p.fetch(ctx, query, aiCorrectionID)
+	var aiCorrection domain.AICorrection
+	err := p.db.WithContext(ctx).Where("ai_correction_id = ?", aiCorrectionID).First(&aiCorrection).Error
 	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, domain.ErrNotFound
+		}
 		return nil, err
 	}
-	if len(aiCorrections) == 0 {
-		return nil, domain.ErrNotFound
-	}
-	return aiCorrections[0], nil
+	return &aiCorrection, nil
 }
 
 func (p *postgresAICorrectionRepository) GetByMistakeID(ctx context.Context, mistakeID int) (*domain.AICorrection, error) {
-	query := `
-		SELECT ai_correction_id, mistake_id, content
-		FROM jpcorrect.ai_correction
-		WHERE mistake_id = $1`
-
-	aiCorrections, err := p.fetch(ctx, query, mistakeID)
+	var aiCorrection domain.AICorrection
+	err := p.db.WithContext(ctx).Where("mistake_id = ?", mistakeID).First(&aiCorrection).Error
 	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, domain.ErrNotFound
+		}
 		return nil, err
 	}
-	if len(aiCorrections) == 0 {
-		return nil, domain.ErrNotFound
-	}
-	return aiCorrections[0], nil
+	return &aiCorrection, nil
 }
 
 func (p *postgresAICorrectionRepository) Create(ctx context.Context, aiCorrection *domain.AICorrection) error {
-	query := `
-		INSERT INTO jpcorrect.ai_correction (mistake_id, content)
-		VALUES ($1, $2)
-		RETURNING ai_correction_id`
-
-	if err := p.conn.QueryRow(ctx, query, aiCorrection.MistakeID, aiCorrection.Content).Scan(&aiCorrection.AICorrectionID); err != nil {
-		return err
-	}
-	return nil
+	return p.db.WithContext(ctx).Create(aiCorrection).Error
 }
 
 func (p *postgresAICorrectionRepository) Update(ctx context.Context, aiCorrection *domain.AICorrection) error {
-	query := `
-		UPDATE jpcorrect.ai_correction
-		SET mistake_id = $1, content = $2
-		WHERE ai_correction_id = $3`
-
-	if _, err := p.conn.Exec(ctx, query, aiCorrection.MistakeID, aiCorrection.Content, aiCorrection.AICorrectionID); err != nil {
-		return err
+	result := p.db.WithContext(ctx).Model(aiCorrection).Where("ai_correction_id = ?", aiCorrection.AICorrectionID).Updates(map[string]interface{}{
+		"mistake_id": aiCorrection.MistakeID,
+		"content":    aiCorrection.Content,
+	})
+	if result.Error != nil {
+		return result.Error
 	}
 	return nil
 }
 
 func (p *postgresAICorrectionRepository) Delete(ctx context.Context, aiCorrectionID int) error {
-	query := `
-		DELETE FROM jpcorrect.ai_correction
-		WHERE ai_correction_id = $1`
-
-	if _, err := p.conn.Exec(ctx, query, aiCorrectionID); err != nil {
-		return err
+	result := p.db.WithContext(ctx).Where("ai_correction_id = ?", aiCorrectionID).Delete(&domain.AICorrection{})
+	if result.Error != nil {
+		return result.Error
 	}
 	return nil
 }
