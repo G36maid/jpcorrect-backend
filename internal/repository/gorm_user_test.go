@@ -45,8 +45,8 @@ func TestGormUserRepository_GetByID(t *testing.T) {
 	t.Run("Success", func(t *testing.T) {
 		mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "user" WHERE id = $1 AND "user"."deleted_at" IS NULL ORDER BY "user"."id" LIMIT $2`)).
 			WithArgs(userID, 1).
-			WillReturnRows(sqlmock.NewRows([]string{"id", "email", "name"}).
-				AddRow(userID, "test@example.com", "Test User"))
+			WillReturnRows(sqlmock.NewRows([]string{"id", "email", "name", "supabase_user_id"}).
+				AddRow(userID, "test@example.com", "Test User", ""))
 
 		user, err := repo.GetByID(context.Background(), userID)
 
@@ -89,8 +89,8 @@ func TestGormUserRepository_GetByEmail(t *testing.T) {
 	t.Run("Success", func(t *testing.T) {
 		mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "user" WHERE email = $1 AND "user"."deleted_at" IS NULL ORDER BY "user"."id" LIMIT $2`)).
 			WithArgs(email, 1).
-			WillReturnRows(sqlmock.NewRows([]string{"id", "email", "name"}).
-				AddRow(uuid.New(), email, "Test User"))
+			WillReturnRows(sqlmock.NewRows([]string{"id", "email", "name", "supabase_user_id"}).
+				AddRow(uuid.New(), email, "Test User", ""))
 
 		user, err := repo.GetByEmail(context.Background(), email)
 
@@ -132,9 +132,9 @@ func TestGormUserRepository_GetByName(t *testing.T) {
 	t.Run("Success", func(t *testing.T) {
 		mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "user" WHERE name = $1 AND "user"."deleted_at" IS NULL`)).
 			WithArgs(name).
-			WillReturnRows(sqlmock.NewRows([]string{"id", "email", "name"}).
-				AddRow(uuid.New(), "test1@example.com", name).
-				AddRow(uuid.New(), "test2@example.com", name))
+			WillReturnRows(sqlmock.NewRows([]string{"id", "email", "name", "supabase_user_id"}).
+				AddRow(uuid.New(), "test1@example.com", name, "").
+				AddRow(uuid.New(), "test2@example.com", name, ""))
 
 		users, err := repo.GetByName(context.Background(), name)
 
@@ -146,7 +146,7 @@ func TestGormUserRepository_GetByName(t *testing.T) {
 	t.Run("EmptyResult", func(t *testing.T) {
 		mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "user" WHERE name = $1 AND "user"."deleted_at" IS NULL`)).
 			WithArgs(name).
-			WillReturnRows(sqlmock.NewRows([]string{"id", "email", "name"}))
+			WillReturnRows(sqlmock.NewRows([]string{"id", "email", "name", "supabase_user_id"}))
 
 		users, err := repo.GetByName(context.Background(), name)
 
@@ -294,5 +294,49 @@ func TestGormUserRepository_Delete(t *testing.T) {
 		err := repo.Delete(context.Background(), userID)
 
 		assert.Error(t, err)
+	})
+}
+
+func TestGetBySupabaseUserID(t *testing.T) {
+	db, mock := setupMockDB(t)
+	repo := NewGormUserRepository(db)
+	supabaseUserID := "supabase-uuid-123"
+
+	t.Run("Success", func(t *testing.T) {
+		userID := uuid.New()
+		mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "user" WHERE supabase_user_id = $1 AND "user"."deleted_at" IS NULL ORDER BY "user"."id" LIMIT $2`)).
+			WithArgs(supabaseUserID, 1).
+			WillReturnRows(sqlmock.NewRows([]string{"id", "email", "name", "supabase_user_id"}).
+				AddRow(userID, "test@example.com", "Test User", supabaseUserID))
+
+		user, err := repo.GetBySupabaseUserID(context.Background(), supabaseUserID)
+
+		assert.NoError(t, err)
+		assert.NotNil(t, user)
+		assert.Equal(t, supabaseUserID, user.SupabaseUserID)
+		assert.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("NotFound", func(t *testing.T) {
+		mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "user" WHERE supabase_user_id = $1 AND "user"."deleted_at" IS NULL ORDER BY "user"."id" LIMIT $2`)).
+			WithArgs(supabaseUserID, 1).
+			WillReturnError(gorm.ErrRecordNotFound)
+
+		user, err := repo.GetBySupabaseUserID(context.Background(), supabaseUserID)
+
+		assert.ErrorIs(t, err, domain.ErrNotFound)
+		assert.Nil(t, user)
+		assert.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("DBError", func(t *testing.T) {
+		mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "user" WHERE supabase_user_id = $1 AND "user"."deleted_at" IS NULL ORDER BY "user"."id" LIMIT $2`)).
+			WithArgs(supabaseUserID, 1).
+			WillReturnError(fmt.Errorf("db error"))
+
+		user, err := repo.GetBySupabaseUserID(context.Background(), supabaseUserID)
+
+		assert.Error(t, err)
+		assert.Nil(t, user)
 	})
 }

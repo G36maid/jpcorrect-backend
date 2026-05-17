@@ -36,6 +36,15 @@ func (r *gormUserRepository) GetByEmail(ctx context.Context, email string) (*dom
 	return &user, nil
 }
 
+func (r *gormUserRepository) GetBySupabaseUserID(ctx context.Context, supabaseUserID string) (*domain.User, error) {
+	var user domain.User
+	err := r.db.WithContext(ctx).Where("supabase_user_id = ?", supabaseUserID).First(&user).Error
+	if err != nil {
+		return nil, MapGormError(err)
+	}
+	return &user, nil
+}
+
 func (r *gormUserRepository) GetByName(ctx context.Context, name string) ([]*domain.User, error) {
 	var users []*domain.User
 	err := r.db.WithContext(ctx).Where("name = ?", name).Find(&users).Error
