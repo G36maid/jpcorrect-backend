@@ -460,3 +460,48 @@ func TestGormGuildAttendeeRepository_Delete(t *testing.T) {
 		assert.Error(t, err)
 	})
 }
+
+func TestGormGuildAttendeeRepository_GetByGuildAndUser(t *testing.T) {
+	db, mock := setupMockDB(t)
+	repo := NewGormGuildAttendeeRepository(db)
+	guildID := uuid.New()
+	userID := uuid.New()
+
+	t.Run("Success", func(t *testing.T) {
+		mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "guild_attendee" WHERE guild_id = $1 AND user_id = $2 ORDER BY "guild_attendee"."id" LIMIT $3`)).
+			WithArgs(guildID, userID, 1).
+			WillReturnRows(sqlmock.NewRows([]string{"id", "guild_id", "user_id", "role"}).
+				AddRow(uuid.New(), guildID, userID, domain.GuildAttendeeRoleMember))
+
+		attendee, err := repo.GetByGuildAndUser(context.Background(), guildID, userID)
+
+		assert.NoError(t, err)
+		assert.NotNil(t, attendee)
+		assert.Equal(t, guildID, attendee.GuildID)
+		assert.Equal(t, userID, attendee.UserID)
+		assert.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("NotFound", func(t *testing.T) {
+		mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "guild_attendee" WHERE guild_id = $1 AND user_id = $2 ORDER BY "guild_attendee"."id" LIMIT $3`)).
+			WithArgs(guildID, userID, 1).
+			WillReturnError(gorm.ErrRecordNotFound)
+
+		attendee, err := repo.GetByGuildAndUser(context.Background(), guildID, userID)
+
+		assert.ErrorIs(t, err, domain.ErrNotFound)
+		assert.Nil(t, attendee)
+		assert.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("DBError", func(t *testing.T) {
+		mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "guild_attendee" WHERE guild_id = $1 AND user_id = $2 ORDER BY "guild_attendee"."id" LIMIT $3`)).
+			WithArgs(guildID, userID, 1).
+			WillReturnError(fmt.Errorf("db error"))
+
+		attendee, err := repo.GetByGuildAndUser(context.Background(), guildID, userID)
+
+		assert.Error(t, err)
+		assert.Nil(t, attendee)
+	})
+}
