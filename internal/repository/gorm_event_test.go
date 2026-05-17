@@ -65,7 +65,7 @@ func TestGormEventRepository_GetByUserID(t *testing.T) {
 	userID := uuid.New()
 
 	t.Run("Success", func(t *testing.T) {
-		mock.ExpectQuery(regexp.QuoteMeta(`SELECT "event"."id","event"."title","event"."description","event"."start_time","event"."expected_duration","event"."actual_duration","event"."record_link","event"."mode","event"."note","event"."created_at","event"."updated_at","event"."deleted_at" FROM "event" JOIN event_attendee ON event_attendee.event_id = event.id WHERE event_attendee.user_id = $1 AND "event"."deleted_at" IS NULL`)).
+		mock.ExpectQuery(regexp.QuoteMeta(`SELECT "event"."id","event"."title","event"."description","event"."start_time","event"."expected_duration","event"."actual_duration","event"."record_link","event"."mode","event"."activity_id","event"."recording_started_by","event"."recording_started_at","event"."recording_ended_at","event"."note","event"."created_at","event"."updated_at","event"."deleted_at" FROM "event" JOIN event_attendee ON event_attendee.event_id = event.id WHERE event_attendee.user_id = $1 AND "event"."deleted_at" IS NULL`)).
 			WithArgs(userID).
 			WillReturnRows(sqlmock.NewRows([]string{"id", "title"}).
 				AddRow(uuid.New(), "Event 1").
@@ -79,7 +79,7 @@ func TestGormEventRepository_GetByUserID(t *testing.T) {
 	})
 
 	t.Run("EmptyResult", func(t *testing.T) {
-		mock.ExpectQuery(regexp.QuoteMeta(`SELECT "event"."id","event"."title","event"."description","event"."start_time","event"."expected_duration","event"."actual_duration","event"."record_link","event"."mode","event"."note","event"."created_at","event"."updated_at","event"."deleted_at" FROM "event" JOIN event_attendee ON event_attendee.event_id = event.id WHERE event_attendee.user_id = $1 AND "event"."deleted_at" IS NULL`)).
+		mock.ExpectQuery(regexp.QuoteMeta(`SELECT "event"."id","event"."title","event"."description","event"."start_time","event"."expected_duration","event"."actual_duration","event"."record_link","event"."mode","event"."activity_id","event"."recording_started_by","event"."recording_started_at","event"."recording_ended_at","event"."note","event"."created_at","event"."updated_at","event"."deleted_at" FROM "event" JOIN event_attendee ON event_attendee.event_id = event.id WHERE event_attendee.user_id = $1 AND "event"."deleted_at" IS NULL`)).
 			WithArgs(userID).
 			WillReturnRows(sqlmock.NewRows([]string{"id", "title"}))
 
@@ -91,7 +91,7 @@ func TestGormEventRepository_GetByUserID(t *testing.T) {
 	})
 
 	t.Run("DBError", func(t *testing.T) {
-		mock.ExpectQuery(regexp.QuoteMeta(`SELECT "event"."id","event"."title","event"."description","event"."start_time","event"."expected_duration","event"."actual_duration","event"."record_link","event"."mode","event"."note","event"."created_at","event"."updated_at","event"."deleted_at" FROM "event" JOIN event_attendee ON event_attendee.event_id = event.id WHERE event_attendee.user_id = $1 AND "event"."deleted_at" IS NULL`)).
+		mock.ExpectQuery(regexp.QuoteMeta(`SELECT "event"."id","event"."title","event"."description","event"."start_time","event"."expected_duration","event"."actual_duration","event"."record_link","event"."mode","event"."activity_id","event"."recording_started_by","event"."recording_started_at","event"."recording_ended_at","event"."note","event"."created_at","event"."updated_at","event"."deleted_at" FROM "event" JOIN event_attendee ON event_attendee.event_id = event.id WHERE event_attendee.user_id = $1 AND "event"."deleted_at" IS NULL`)).
 			WithArgs(userID).
 			WillReturnError(fmt.Errorf("db error"))
 
@@ -280,6 +280,69 @@ func TestGormEventRepository_Delete(t *testing.T) {
 		mock.ExpectRollback()
 
 		err := repo.Delete(context.Background(), eventID)
+
+		assert.Error(t, err)
+	})
+}
+
+func TestGormEventRepository_MarkRecordingStarted(t *testing.T) {
+	db, mock := setupMockDB(t)
+	repo := NewGormEventRepository(db)
+	eventID := uuid.New()
+	userID := uuid.New()
+
+	t.Run("Success", func(t *testing.T) {
+		mock.ExpectBegin()
+		mock.ExpectExec(regexp.QuoteMeta(`UPDATE "event" SET "recording_started_at"=$1,"recording_started_by"=$2,"updated_at"=$3 WHERE id = $4`)).
+			WithArgs(sqlmock.AnyArg(), userID, sqlmock.AnyArg(), eventID).
+			WillReturnResult(sqlmock.NewResult(1, 1))
+		mock.ExpectCommit()
+
+		err := repo.MarkRecordingStarted(context.Background(), eventID, userID)
+
+		assert.NoError(t, err)
+		assert.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("DBError", func(t *testing.T) {
+		mock.ExpectBegin()
+		mock.ExpectExec(regexp.QuoteMeta(`UPDATE "event" SET "recording_started_at"=$1,"recording_started_by"=$2,"updated_at"=$3 WHERE id = $4`)).
+			WithArgs(sqlmock.AnyArg(), userID, sqlmock.AnyArg(), eventID).
+			WillReturnError(fmt.Errorf("db error"))
+		mock.ExpectRollback()
+
+		err := repo.MarkRecordingStarted(context.Background(), eventID, userID)
+
+		assert.Error(t, err)
+	})
+}
+
+func TestGormEventRepository_MarkRecordingEnded(t *testing.T) {
+	db, mock := setupMockDB(t)
+	repo := NewGormEventRepository(db)
+	eventID := uuid.New()
+
+	t.Run("Success", func(t *testing.T) {
+		mock.ExpectBegin()
+		mock.ExpectExec(regexp.QuoteMeta(`UPDATE "event" SET "recording_ended_at"=$1,"updated_at"=$2 WHERE id = $3`)).
+			WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), eventID).
+			WillReturnResult(sqlmock.NewResult(1, 1))
+		mock.ExpectCommit()
+
+		err := repo.MarkRecordingEnded(context.Background(), eventID)
+
+		assert.NoError(t, err)
+		assert.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("DBError", func(t *testing.T) {
+		mock.ExpectBegin()
+		mock.ExpectExec(regexp.QuoteMeta(`UPDATE "event" SET "recording_ended_at"=$1,"updated_at"=$2 WHERE id = $3`)).
+			WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), eventID).
+			WillReturnError(fmt.Errorf("db error"))
+		mock.ExpectRollback()
+
+		err := repo.MarkRecordingEnded(context.Background(), eventID)
 
 		assert.Error(t, err)
 	})
