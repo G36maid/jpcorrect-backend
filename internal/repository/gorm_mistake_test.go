@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"regexp"
 	"testing"
+	"time"
 
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/google/uuid"
@@ -23,8 +24,8 @@ func TestGormMistakeRepository_GetByID(t *testing.T) {
 	t.Run("Success", func(t *testing.T) {
 		mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "mistake" WHERE id = $1 ORDER BY "mistake"."id" LIMIT $2`)).
 			WithArgs(mistakeID, 1).
-			WillReturnRows(sqlmock.NewRows([]string{"id", "event_id", "user_id", "type", "origin_text", "fixed_text"}).
-				AddRow(mistakeID, uuid.New(), uuid.New(), "grammar", "origin", "fixed"))
+			WillReturnRows(sqlmock.NewRows([]string{"id", "event_id", "user_id", "type", "origin_text", "fixed_text", "start_offset_sec", "end_offset_sec", "comment", "note", "confidence", "latest_correction_text", "latest_correction_source", "interacted_at", "created_at", "updated_at"}).
+				AddRow(mistakeID, uuid.New(), uuid.New(), "grammar", "origin", "fixed", 0.0, 0.0, nil, nil, "medium", nil, "initial", nil, time.Now(), time.Now()))
 
 		mistake, err := repo.GetByID(context.Background(), mistakeID)
 
@@ -66,9 +67,9 @@ func TestGormMistakeRepository_GetByEventID(t *testing.T) {
 	t.Run("Success", func(t *testing.T) {
 		mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "mistake" WHERE event_id = $1`)).
 			WithArgs(eventID).
-			WillReturnRows(sqlmock.NewRows([]string{"id", "event_id"}).
-				AddRow(uuid.New(), eventID).
-				AddRow(uuid.New(), eventID))
+			WillReturnRows(sqlmock.NewRows([]string{"id", "event_id", "user_id", "type", "origin_text", "fixed_text", "start_offset_sec", "end_offset_sec", "comment", "note", "confidence", "latest_correction_text", "latest_correction_source", "interacted_at", "created_at", "updated_at"}).
+				AddRow(uuid.New(), eventID, uuid.New(), "grammar", "origin", "fixed", 0.0, 0.0, nil, nil, "medium", nil, "initial", nil, time.Now(), time.Now()).
+				AddRow(uuid.New(), eventID, uuid.New(), "grammar", "origin", "fixed", 0.0, 0.0, nil, nil, "medium", nil, "initial", nil, time.Now(), time.Now()))
 
 		mistakes, err := repo.GetByEventID(context.Background(), eventID)
 
@@ -80,7 +81,7 @@ func TestGormMistakeRepository_GetByEventID(t *testing.T) {
 	t.Run("EmptyResult", func(t *testing.T) {
 		mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "mistake" WHERE event_id = $1`)).
 			WithArgs(eventID).
-			WillReturnRows(sqlmock.NewRows([]string{"id", "event_id"}))
+			WillReturnRows(sqlmock.NewRows([]string{"id", "event_id", "user_id", "type", "origin_text", "fixed_text", "start_offset_sec", "end_offset_sec", "comment", "note", "confidence", "latest_correction_text", "latest_correction_source", "interacted_at", "created_at", "updated_at"}))
 
 		mistakes, err := repo.GetByEventID(context.Background(), eventID)
 
@@ -109,8 +110,8 @@ func TestGormMistakeRepository_GetByUserID(t *testing.T) {
 	t.Run("Success", func(t *testing.T) {
 		mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "mistake" WHERE user_id = $1`)).
 			WithArgs(userID).
-			WillReturnRows(sqlmock.NewRows([]string{"id", "user_id"}).
-				AddRow(uuid.New(), userID))
+			WillReturnRows(sqlmock.NewRows([]string{"id", "event_id", "user_id", "type", "origin_text", "fixed_text", "start_offset_sec", "end_offset_sec", "comment", "note", "confidence", "latest_correction_text", "latest_correction_source", "interacted_at", "created_at", "updated_at"}).
+				AddRow(uuid.New(), uuid.New(), userID, "grammar", "origin", "fixed", 0.0, 0.0, nil, nil, "medium", nil, "initial", nil, time.Now(), time.Now()))
 
 		mistakes, err := repo.GetByUserID(context.Background(), userID)
 
@@ -122,7 +123,7 @@ func TestGormMistakeRepository_GetByUserID(t *testing.T) {
 	t.Run("EmptyResult", func(t *testing.T) {
 		mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "mistake" WHERE user_id = $1`)).
 			WithArgs(userID).
-			WillReturnRows(sqlmock.NewRows([]string{"id", "user_id"}))
+			WillReturnRows(sqlmock.NewRows([]string{"id", "event_id", "user_id", "type", "origin_text", "fixed_text", "start_offset_sec", "end_offset_sec", "comment", "note", "confidence", "latest_correction_text", "latest_correction_source", "interacted_at", "created_at", "updated_at"}))
 
 		mistakes, err := repo.GetByUserID(context.Background(), userID)
 

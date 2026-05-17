@@ -17,6 +17,23 @@ const (
 	MistakeTypeAdvanced      MistakeType = "advanced"
 )
 
+// MistakeConfidence represents the confidence level of a mistake detection.
+type MistakeConfidence string
+
+const (
+	MistakeConfidenceLow    MistakeConfidence = "low"
+	MistakeConfidenceMedium MistakeConfidence = "medium"
+	MistakeConfidenceHigh   MistakeConfidence = "high"
+)
+
+// MistakeCorrectionSource represents the source of the latest correction.
+type MistakeCorrectionSource string
+
+const (
+	MistakeCorrectionSourceInitial MistakeCorrectionSource = "initial"
+	MistakeCorrectionSourceChatbot MistakeCorrectionSource = "chatbot"
+)
+
 // Mistake represents a mistake in the jpcorrect system.
 // Maps to jpcorrect.mistake table.
 type Mistake struct {
@@ -29,8 +46,12 @@ type Mistake struct {
 	StartOffsetSec float64     `json:"start_offset_sec"`
 	EndOffsetSec   float64     `json:"end_offset_sec"`
 	Comment        *string     `gorm:"type:text" json:"comment"`
-	Note           *string     `gorm:"type:text" json:"note"`
-	CreatedAt      time.Time   `json:"created_at"`
+	Note                   *string                `gorm:"type:text" json:"note"`
+	Confidence             MistakeConfidence      `gorm:"default:medium" json:"confidence"`
+	LatestCorrectionText   *string                `gorm:"type:text" json:"latest_correction_text"`
+	LatestCorrectionSource MistakeCorrectionSource `gorm:"default:initial" json:"latest_correction_source"`
+	InteractedAt           *time.Time             `json:"interacted_at"`
+	CreatedAt              time.Time              `json:"created_at"`
 	UpdatedAt      time.Time   `json:"updated_at"`
 }
 
